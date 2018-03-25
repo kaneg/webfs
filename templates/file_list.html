@@ -1,0 +1,407 @@
+<html>
+
+<head>
+    <title>Web FS</title>
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="{{.Prefix}}/static/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{.Prefix}}/static/css/bootstrap.theme.min.css">
+    <link rel="stylesheet" href="{{.Prefix}}/static/css/bootstrap.grid.min.css">
+    <link rel="stylesheet" href="{{.Prefix}}/static/css/main.css">
+    <link rel="stylesheet" href="{{.Prefix}}/static/css/uploadfile.css">
+
+    <!-- Latest compiled and minified JavaScript -->
+    <script src="{{.Prefix}}/static/js/jquery.min.js"></script>
+    
+</head>
+
+<body>
+    <div class="text-center navbar-fixed-top">
+        <div class="alert alert-success" data-dismiss="alert" id="msg_success" style="display: none" role="alert"></div>
+    </div>
+    <div class="blog-masthead">
+        <div class="container">
+            <nav class="blog-nav">
+                <a class="blog-nav-item" href="{{.Prefix}}/fs/">Home</a>
+            </nav>
+        </div>
+        <div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="row">
+            <div class="text-center navbar-fixed-top" style="z-index:9999">
+                <div class="alert alert-warning alert-dismissible" data-dismiss="alert" id="msg_error" style="display: none" role="alert">
+                    <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                    <div id="msg_error_content"></div>
+                </div>
+            </div>
+            <main class="main" id="app">
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" placeholder="Path" id="file_path" :value="Folder" @keyup.enter="goToPath">
+                    <div class="input-group-append">
+                        <button class="btn btn-outline-secondary" type="button" @click="goToPath()">Go</button>
+                    </div>
+                </div>
+                <div>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#upload_file_dialog">Upload
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-toggle="modal" data-target="#create_directory_dialog">Create Folder
+                        </button>
+                        <button class="btn btn-secondary" @click="reload()">Reload</button>
+                        <button class="btn btn-secondary" @click="goUp()">Up</button>
+                    </div>
+                    <div class="btn-group float-right" role="group">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="show_hidden_file">
+                            <label class="form-check-label" for="show_hidden_file">Show Hidden files</label>
+                        </div>
+                    </div>
+                </div>
+                <div id="app1">
+                    <file-list :files="files"></file-list>
+                </div>
+                <table class="table table-striped table-hover col-sm-8" id="file_table" style="display:none1">
+                    <caption>File count: ${files.length}</caption>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Modified Date</th>
+                            <th>Size</th>
+                            <th>Download</th>
+                            <th>View as Text</th>
+                            <th>Edit</th>
+                            <th>Delete</th>
+                        </tr>
+                    </thead>
+                    <tbody v-if="files.length" :a="files.length">
+                        <tr v-for="file in files">
+                            <td v-if="file.IsDir">
+                                <a href="#" @click.prevent="return list_relative_path(file.Name)" :name="file.Name">${file.Name}</a>
+                            </td>
+                            <td v-else>
+                                <a :name="file.Name"></a>${file.Name}</td>
+                            <td>${file.ModTime}</td>
+                            <td v-if="!file.IsDir">${file.Size | prettyBytes}</td>
+                            <td v-else></td>
+                            <td v-if="!file.IsDir">
+                                <a :href="'{{.Prefix}}/fs/download/@'+get_full_path(file.Name)">Download</a>
+                            </td>
+                            <td v-else></td>
+                            <td v-if="!file.IsDir && file.viewable">
+                                <a :href="'{{.Prefix}}/fs/view/@' + get_full_path(file.Name)">View</a>
+                            </td>
+                            <td v-else></td>
+                            <td v-if="!file.IsDir && file.editable">
+                                <a href="#" @click.prevent="onEditFile(file.Name)">Edit</a>
+                            </td>
+                            <td v-else></td>
+                            <td>
+                                <a href="#" @click.prevent="deleteFile(file.Name)">Delete</a>
+                            </td>
+                        </tr>
+                    </tbody>
+                    <tbody v-else>
+                        <tr>
+                            <td colspan="7" class="text-center">Empty</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div id="create_directory_dialog" class="modal fade" role="dialog">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Create Directory</h5>
+                                <button type="button" class="close" data-dismiss="modal">
+                                    <span>&times;</span>
+                                </button>
+                            </div>
+                            <div class="modal-body">
+                                <form method="post">
+                                    <div class="form-group">
+                                        <label for="directory_name">Directory name</label>
+                                        <input type="text" name="directory_name" id="directory_name" class="form-control" placeholder="Directory name">
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                <button type="button" class="btn btn-primary" name="do_submit" data-loading-text="Creating...">
+                                    Create
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="upload_file_dialog" class="modal fade" role="dialog">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Upload File</h5>
+                                <button type="button" class="close" data-dismiss="modal">
+                                    <span>&times;</span>
+                                </button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="fileuploader">Upload</div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="edit_file_dialog" class="modal fade" role="dialog">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Edit File</h5>
+                                <button type="button" class="close" data-dismiss="modal">
+                                    <span>&times;</span>
+                                </button>
+                            </div>
+                            <div class="modal-body">
+                                <form>
+                                    <input type="hidden" name="target_file">
+                                    <textarea class="form-control" id="content" name="content" rows="17" cols="180" wrap="off"></textarea>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                <button type="button" class="btn btn-primary" data-dismiss="modal" @click="saveFile()">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    <script src="{{.Prefix}}/static/js/bootstrap.min.js"></script>
+    <script src="{{.Prefix}}/static/js/vue.min.js"></script>
+    <script src="{{.Prefix}}/static/js/vue.plugins.js"></script>
+    <script src="{{.Prefix}}/static/js/jquery.form.js"></script>
+    <script src="{{.Prefix}}/static/js/jquery.uploadfile.min.js"></script>
+    <script>
+        $(function () {
+            $('[data-toggle="tooltip"]').tooltip()
+        })
+
+
+    </script>
+    <script>
+        postJSON = function (url, data, func) {
+            $.post(url, data, func, "json");
+        }
+
+        $(document).ready(function () {
+            var file_list_template = {
+                delimiters: ['${', '}'],
+                props: ['files'],
+                template1: ' <table class="table table-striped table-hover col-sm-8" id="file_table">\
+                        <tr v-for="file in files">aaaa${file.Name}</tr>\
+                    </table>\
+                ',
+                template2: '<tr v-for="file in files"><td>aaaa</td></tr>',
+                template: '<tr><td>aaaa</td></tr>'
+            };
+            fsApp = new Vue({
+                delimiters: ['${', '}'],
+                el: '#app',
+                data: {
+                    files: [],
+                    Folder: null,
+                },
+                methods: {
+                    get_full_path: function (path) {
+                        return this.Folder + '/' + path
+                    },
+                    list_relative_path: function (path) {
+                        var path = this.get_full_path(path)
+                        return this.list_absolute_dir(path)
+                    },
+                    is_editable: function (name) {
+                        return true;
+                    },
+                    process_data: function (_this, data) {
+                        if (data.success) {
+                            msg = data.msg
+                            //_this.files = msg.Files
+                            _this.Folder = msg.Folder
+                            document.location.hash = _this.Folder
+                            tmp_files = []
+                            for (var i = 0; i < msg.Files.length; i++) {
+                                file = msg.Files[i]
+                                if (file.Name[0] != '.' || $('#show_hidden_file').is(':checked')) {
+                                    file.editable = _this.is_editable(file.Name)
+                                    file.viewable = file.editable
+                                    tmp_files.push(file)
+                                }
+                            }
+
+                            tmp_files.sort(function (a, b) {
+                                if (a.IsDir && !b.IsDir) {
+                                    return -1
+                                } else if (!a.IsDir && b.IsDir) {
+                                    return 1
+                                } else {
+                                    return 0
+                                }
+                            })
+
+                            _this.files = tmp_files
+                        }
+                        _this.loadingEnd()
+                    },
+                    list_absolute_dir: function (path) {
+                        console.log('list file:[' + path + ']')
+                        var _this = this
+                        console.log('absolute path: ' + '{{.Prefix}}/fs/list' + path)
+                        this.loadingStart('Loading...')
+                        $.getJSON('{{.Prefix}}/fs/list/@' + path).done(function (data) {
+                            _this.process_data(_this, data)
+                        })
+                    },
+                    list_up_file: function (path) {
+                        console.log('list up file:[' + path + ']')
+                        var _this = this
+                        this.loadingStart('Loading...')
+                        $.getJSON('{{.Prefix}}/fs/listup/@' + path).done(function (data) {
+                            _this.process_data(_this, data)
+                        })
+                    },
+                    loadingStart: function (msg) {
+                        $('#msg_success').text(msg).show()
+                    },
+                    loadingEnd: function () {
+                        $('#msg_success').hide()
+                    },
+                    goUp: function () {
+                        this.list_up_file(this.Folder)
+                    },
+                    reload: function () {
+                        this.files = []
+                        this.list_absolute_dir(this.Folder)
+                    },
+                    goToPath: function () {
+                        this.list_absolute_dir($('#file_path').val())
+                    },
+                    deleteFile: function (target) {
+                        target = this.get_full_path(target)
+                        var result = window.confirm('Are you sure to delete file ' + target)
+                        if (result) {
+                            var _this = this
+                            $.getJSON('{{.Prefix}}/fs/delete/@' + target).done(function (data) {
+                                if (!data.success) {
+                                    alert(data.msg)
+                                }
+                                _this.reload()
+                            })
+                        }
+                    },
+                    createFolder: function (target) {
+                        target = this.get_full_path(target)
+                        var _this = this
+                        $.post('{{.Prefix}}/fs/mkdirs/@' + target, null, function (data) {
+                            _this.reload()
+                        }, "json");
+                    },
+
+                    onEditFile: function (target) {
+                        target = this.get_full_path(target)
+                        var _this = this
+                        var modal = $('#edit_file_dialog').modal('show')
+                        modal.find('.modal-body input[name="target_file"]').val(target);
+                        $('#content').val('')
+                        $.getJSON('{{.Prefix}}/fs/onedit/@' + target).done(function (data) {
+                            if (data.success) {
+                                msg = data.msg
+                                $('#content').val(msg.Content);
+                            }
+                        })
+                    },
+                    saveFile: function () {
+                        var modal = $('#edit_file_dialog')
+                        var target = modal.find('.modal-body input[name="target_file"]').val()
+                        var contentData = { 'content': $('#content').val() }
+                        var $form = modal.find('.modal-body form');
+                        var _this = this
+                        $.post('{{.Prefix}}/fs/save/@' + target, $form.serialize(), function (data) {
+                            if (!data.success) {
+                                alert(data.msg)
+                            }
+                            _this.reload()
+                        }, "json");
+                    }
+                }
+            });
+
+            $('#create_directory_dialog').on('show.bs.modal', function (event) {
+                console.log('on create container');
+                var button = $(event.relatedTarget); // Button that triggered the modal
+                var modal = $(this);
+                var $action = modal.find('.modal-footer button[name="do_submit"]');
+                modal.find('.modal-body input[name="directory_name"]').val('');
+                $action.click(function () {
+                    var parent_directory = modal.find('.modal-body input[name="parent_directory"]').val();
+                    var directory_name_input = modal.find('.modal-body input[name="directory_name"]');
+                    var directory_name = directory_name_input.val();
+                    console.log('directory_name name:' + directory_name);
+                    if (!directory_name) {
+                        directory_name_input.parent().addClass('has-error');
+                        return;
+                    } else {
+                        directory_name_input.parent().removeClass('has-error');
+                    }
+
+                    fsApp.createFolder(directory_name);
+                    modal.modal('hide');
+                });
+            });
+
+            $('#upload_file_dialog').on('show.bs.modal', function (event) {
+                console.log('on upload file');
+                var button = $(event.relatedTarget); // Button that triggered the modal
+                var modal = $(this);
+                var $action = modal.find('.modal-footer button[name="do_submit"]');
+                console.log($action);
+                var parent_directory = fsApp.Folder;
+                var action_url = '{{.Prefix}}/fs/upload/@' + parent_directory;
+                $('.ajax-file-upload-container').remove();
+                $("#fileuploader").uploadFile({
+                    url: action_url,
+                    fileName: "uploaded_file"
+                });
+            }).on('hidden.bs.modal', function () {
+                fsApp.reload();
+            });
+
+            init()
+            $('#show_hidden_file').change(function () {
+                fsApp.reload();
+            })
+        });
+        window.addEventListener('hashchange', function () {
+            console.log(window.location.hash);
+            console.log('reload page on hashchange');
+            init()
+        });
+        function init() {
+            var path = document.location.hash
+            if (path == '') {
+                path = '~';
+            } else {
+                path = path.substring(1, path.length);
+            }
+            console.log('init path:' + path)
+            if (fsApp.Folder != path) {
+                fsApp.Folder = path;
+                fsApp.reload();
+            }
+        }
+    </script>
+</body>
+
+</html>

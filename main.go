@@ -107,7 +107,7 @@ func formatUserHome(filePath string) string{
 	if filePath == "~" {
 		usr, err := user.Current()
 		if err != nil{
-			panic(err)
+			return os.Getenv("HOME")
 		}
 		fmt.Println("User:", usr)
 		filePath = usr.HomeDir

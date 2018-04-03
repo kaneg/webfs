@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"github.com/kaneg/flaskgo"
 	"log"
 	"os"
 	"os/user"
@@ -14,8 +15,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/kaneg/flaskgo"
 )
 
 type WebFS struct {
@@ -103,10 +102,10 @@ func (a ByTime) Less(i, j int) bool {
 	}
 }
 
-func formatUserHome(filePath string) string{
+func formatUserHome(filePath string) string {
 	if filePath == "~" {
 		usr, err := user.Current()
-		if err != nil{
+		if err != nil {
 			return os.Getenv("HOME")
 		}
 		fmt.Println("User:", usr)
@@ -165,6 +164,7 @@ func (fs *WebFS) List(orderBy string, isAsc bool, filePath string) string {
 
 	fmt.Println("Read filePath:" + filePath)
 	dir, err := os.Open(filePath)
+	defer dir.Close()
 	if err == nil {
 		info, err := dir.Stat()
 		if err == nil {
@@ -200,7 +200,7 @@ func returnSuccess(msg string) string {
 func returnJson(v interface{}) string {
 	data, err := json.Marshal(v)
 	if err != nil {
-		return returnError("")
+		return returnError(err.Error())
 	}
 	return `{"success": true, "msg": ` + string(data) + `}`
 }
@@ -235,7 +235,7 @@ func (fs *WebFS) MakeDirs(filePath string) string {
 
 	err := os.MkdirAll(filePath, 0722)
 	if err != nil {
-		return returnError("")
+		return returnError(err.Error())
 	} else {
 		return returnSuccess("")
 	}
@@ -249,7 +249,7 @@ func (fs *WebFS) Remove(filePath string) string {
 
 	if err != nil {
 		log.Println(err)
-		return returnError("")
+		return returnError(err.Error())
 	} else {
 		return returnSuccess("")
 	}
@@ -262,6 +262,7 @@ func (fs *WebFS) Download(filePath string) {
 
 	w := flaskgo.GetResponseWriter()
 	in, err := os.OpenFile(filePath, os.O_RDONLY, 0)
+	defer in.Close()
 	if err != nil {
 		w.WriteHeader(404)
 		w.Write([]byte("Not Found"))
@@ -284,6 +285,7 @@ func (fs *WebFS) View(filePath string) {
 	w := flaskgo.GetResponseWriter()
 
 	in, err := os.OpenFile(filePath, os.O_RDONLY, 0)
+	defer in.Close()
 	if err != nil {
 		w.WriteHeader(404)
 		w.Write([]byte("Not Found"))
@@ -328,7 +330,7 @@ func (fs *WebFS) OnEdit(filePath string) string {
 	defer in.Close()
 	if err != nil {
 		log.Println(err)
-		return returnError("Not Found")
+		return returnError(err.Error())
 	}
 	info, _ := in.Stat()
 	buffer := make([]byte, info.Size())
@@ -354,12 +356,12 @@ func (fs *WebFS) Save(filePath string) string {
 	defer out.Close()
 	if err != nil {
 		log.Println(err)
-		return returnError("")
+		return returnError(err.Error())
 	}
 	_, err = out.Write(buffer)
 	if err != nil {
 		log.Println(err)
-		return returnError("")
+		return returnError(err.Error())
 	} else {
 		return returnSuccess("")
 	}
@@ -375,25 +377,25 @@ func (fs *WebFS) Upload(parentDirectory string) string {
 
 	if err != nil {
 		log.Println(err)
-		return returnError("")
+		return returnError(err.Error())
 	}
 	var buffer = make([]byte, header.Size)
 	_, err = f.Read(buffer)
 	if err != nil {
 		log.Println(err)
-		return returnError("")
+		return returnError(err.Error())
 	}
 	fullPath := path.Join(parentDirectory, header.Filename)
 	out, err := os.Create(fullPath)
 	defer out.Close()
 	if err != nil {
 		log.Println(err)
-		return returnError("")
+		return returnError(err.Error())
 	}
 	_, err = out.Write(buffer)
 	if err != nil {
 		log.Println(err)
-		return returnError("")
+		return returnError(err.Error())
 	} else {
 		return returnSuccess("")
 	}
@@ -420,10 +422,12 @@ func initRoute(webFS *WebFS) {
 
 var port = 5007
 var prefix = ""
+var isService = false
 
 func init() {
 	flag.IntVar(&port, "port", port, "Listen Port")
 	flag.StringVar(&prefix, "prefix", prefix, "Web URL prefix")
+	flag.BoolVar(&isService, "service", isService, "Run as service")
 	flag.Parse()
 }
 
@@ -433,5 +437,12 @@ func main() {
 	initRoute(&webFS)
 
 	fmt.Println("Listen on port:" + strconv.Itoa(port))
-	app.Run(":" + strconv.Itoa(port))
+	running := func() {
+		app.Run(":" + strconv.Itoa(port))
+	}
+	if isService && runtime.GOOS != "windows" {
+		runningInService(running)
+	} else {
+		running()
+	}
 }

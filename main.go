@@ -440,7 +440,7 @@ func main() {
 	running := func() {
 		app.Run(":" + strconv.Itoa(port))
 	}
-	if isService && runtime.GOOS != "windows" {
+	if isService && runtime.GOOS == "windows" {
 		runningInService(running)
 	} else {
 		running()

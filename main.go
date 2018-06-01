@@ -151,9 +151,7 @@ func (fs *WebFS) ListUp(filePath string) string {
 
 func (fs *WebFS) Index() string {
 	c := make(flaskgo.Context)
-	c["Folder"] = "~"
-	c["Dir"] = "~"
-	c["BaseName"] = "~"
+	c["Dir"] = dir
 	c["Prefix"] = fs.app.Prefix
 	return fs.app.RenderTemplate("file_list.html", &c)
 }
@@ -423,11 +421,13 @@ func initRoute(webFS *WebFS) {
 var port = 5007
 var prefix = ""
 var isService = false
+var dir = "~"
 
 func init() {
 	flag.IntVar(&port, "port", port, "Listen Port")
 	flag.StringVar(&prefix, "prefix", prefix, "Web URL prefix")
 	flag.BoolVar(&isService, "service", isService, "Run as service")
+	flag.StringVar(&dir, "dir", dir, "First dir")
 	flag.Parse()
 }
 

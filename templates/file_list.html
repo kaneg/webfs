@@ -391,7 +391,7 @@
         function init() {
             var path = document.location.hash
             if (path == '') {
-                path = '~';
+                path = '{{.Dir}}';
             } else {
                 path = path.substring(1, path.length);
             }

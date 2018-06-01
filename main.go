@@ -290,6 +290,10 @@ func (fs *WebFS) View(filePath string) {
 		return
 	}
 	info, _ := in.Stat()
+	if info.IsDir() {
+		fs.app.Redirect("/fs/list/#" + filePath)()
+		return
+	}
 	buffer := make([]byte, info.Size())
 	in.Read(buffer)
 	fmt.Println("read over")

@@ -3,12 +3,17 @@
 package main
 
 import (
+	"os/exec"
 	"golang.org/x/sys/windows/svc"
 	"time"
 )
 
 type WindowsService struct {
 	running func()
+}
+
+func getStartCommands(command string) *exec.Cmd {
+	return exec.Command("cmd", "/c", command)
 }
 
 func (m *WindowsService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {

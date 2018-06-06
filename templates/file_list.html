@@ -68,8 +68,9 @@
                     <thead>
                         <tr>
                             <th>Name</th>
-                            <th>Modified Date</th>
+                            <th>File Mode</th>
                             <th>Size</th>
+                            <th>Modified Date</th>
                             <th>Download</th>
                             <th>View as Text</th>
                             <th>Edit</th>
@@ -83,9 +84,10 @@
                             </td>
                             <td v-else>
                                 <a :name="file.Name"></a>${file.Name}</td>
-                            <td>${file.ModTime}</td>
+                            <td>${file.FileMode}</td>
                             <td v-if="!file.IsDir">${file.Size | prettyBytes}</td>
                             <td v-else></td>
+                            <td>${file.ModTime}</td>
                             <td v-if="!file.IsDir">
                                 <a :href="'{{.Prefix}}/fs/download/@'+get_full_path(file.Name)">Download</a>
                             </td>

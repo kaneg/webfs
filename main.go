@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/kaneg/flaskgo"
 	"log"
 	"os"
 	"os/user"
@@ -15,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/kaneg/flaskgo"
 )
 
 type WebFS struct {
@@ -29,10 +30,11 @@ type FolderMeta struct {
 }
 
 type FileMeta struct {
-	Name    string
-	IsDir   bool
-	Size    int64
-	ModTime string
+	Name     string
+	IsDir    bool
+	Size     int64
+	ModTime  string
+	FileMode string
 }
 
 func toFileMetas(infos []os.FileInfo) []FileMeta {
@@ -42,6 +44,7 @@ func toFileMetas(infos []os.FileInfo) []FileMeta {
 		fileMetas[i].IsDir = info.IsDir()
 		fileMetas[i].Size = info.Size()
 		fileMetas[i].ModTime = info.ModTime().Format(time.UnixDate)
+		fileMetas[i].FileMode = info.Mode().String()
 	}
 	return fileMetas
 }
@@ -187,12 +190,25 @@ func (fs *WebFS) List(orderBy string, isAsc bool, filePath string) string {
 	return returnError("Failed to open file: " + filePath)
 }
 
+type Response struct {
+	Success bool   `json:"success"`
+	Msg     string `json:"msg"`
+}
+
 func returnError(msg string) string {
-	return `{"success": false, "msg": "` + msg + `"}`
+	return returnRawJson(Response{false, msg})
 }
 
 func returnSuccess(msg string) string {
-	return `{"success": true, "msg": "` + msg + `"}`
+	return returnJson(Response{true, msg})
+}
+
+func returnRawJson(v interface{}) string {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return returnError(err.Error())
+	}
+	return string(data)
 }
 
 func returnJson(v interface{}) string {
@@ -346,6 +362,40 @@ func (fs *WebFS) OnEdit(filePath string) string {
 	return returnJson(&c)
 }
 
+func (fs *WebFS) GetInfo(filePath string) string {
+	filePath = fs.normalizeInPath(filePath)
+	fmt.Println("get: " + filePath)
+	if info, err := os.Stat(filePath); os.IsNotExist(err) {
+		return returnError("File not found: " + filePath)
+	} else {
+		c := make(flaskgo.Context)
+		c["FilePath"] = fs.normalizeOutPath(filePath)
+		c["Folder"] = path.Dir(filePath)
+		c["BaseName"] = path.Base(filePath)
+		c["Size"] = info.Size()
+		c["IsDir"] = info.IsDir()
+		c["FileMode"] = info.Mode().String()
+		return returnJson(&c)
+	}
+}
+
+func (fs *WebFS) Rename(srcPath, dstPath string) string {
+	srcPath = fs.normalizeInPath(srcPath)
+	dstPath = fs.normalizeInPath(dstPath)
+	fmt.Println("rename: " + srcPath)
+	fmt.Println("to: " + dstPath)
+	if _, err := os.Stat(srcPath); os.IsNotExist(err) {
+		return returnError("File not found: " + srcPath)
+	} else {
+		err := os.Rename(srcPath, dstPath)
+		if err != nil {
+			return returnError("Rename File failed: " + srcPath)
+		} else {
+			return returnSuccess("")
+		}
+	}
+}
+
 func (fs *WebFS) Save(filePath string) string {
 	fmt.Println("save: " + filePath)
 	filePath = fs.normalizeInPath(filePath)
@@ -403,6 +453,20 @@ func (fs *WebFS) Upload(parentDirectory string) string {
 	}
 }
 
+type CommandOutput struct {
+	Success bool   `json:"success"`
+	Output  string `json:"output"`
+}
+
+func (fs *WebFS) ExecuteCmd() string {
+	r := flaskgo.GetRequest()
+	command := r.FormValue("command")
+	cmd := getStartCommands(command)
+	buffer, err := cmd.Output()
+	output := CommandOutput{err == nil, string(buffer)}
+	return returnJson(&output)
+}
+
 func initRoute(webFS *WebFS) {
 	app := webFS.app
 	app.AddRoute("/", app.Redirect("/fs/"))
@@ -418,8 +482,11 @@ func initRoute(webFS *WebFS) {
 	app.AddRoute("/fs/download/@<path:path>", webFS.Download)
 	app.AddRoute("/fs/view/@<path:path>", webFS.View)
 	app.AddRoute("/fs/onedit/@<path:path>", webFS.OnEdit)
+	app.AddRoute("/fs/get/@<path:path>", webFS.GetInfo)
 	app.AddRoute("/fs/save/@<path:path>", webFS.Save, "POST")
 	app.AddRoute("/fs/upload/@<path:path>", webFS.Upload, "POST")
+	app.AddRoute("/fs/rename/@<path:src>/@<path:dst>", webFS.Rename, "POST")
+	app.AddRoute("/fs/execute", webFS.ExecuteCmd)
 }
 
 var port = 5007

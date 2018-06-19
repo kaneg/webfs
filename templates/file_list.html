@@ -11,7 +11,7 @@
 
     <!-- Latest compiled and minified JavaScript -->
     <script src="{{.Prefix}}/static/js/jquery.min.js"></script>
-    
+
 </head>
 
 <body>
@@ -340,10 +340,8 @@
                 }
             });
 
-            $('#create_directory_dialog').on('show.bs.modal', function (event) {
-                console.log('on create container');
-                var button = $(event.relatedTarget); // Button that triggered the modal
-                var modal = $(this);
+            {
+                var modal = $('#create_directory_dialog');
                 var $action = modal.find('.modal-footer button[name="do_submit"]');
                 modal.find('.modal-body input[name="directory_name"]').val('');
                 $action.click(function () {
@@ -361,14 +359,12 @@
                     fsApp.createFolder(directory_name);
                     modal.modal('hide');
                 });
-            });
+            }
+
 
             $('#upload_file_dialog').on('show.bs.modal', function (event) {
                 console.log('on upload file');
-                var button = $(event.relatedTarget); // Button that triggered the modal
                 var modal = $(this);
-                var $action = modal.find('.modal-footer button[name="do_submit"]');
-                console.log($action);
                 var parent_directory = fsApp.Folder;
                 var action_url = '{{.Prefix}}/fs/upload/@' + parent_directory;
                 $('.ajax-file-upload-container').remove();
@@ -380,7 +376,7 @@
                 fsApp.reload();
             });
 
-            init()
+            init();
             $('#show_hidden_file').change(function () {
                 fsApp.reload();
             })
@@ -392,13 +388,13 @@
         });
         function init() {
             var path = document.location.hash
-            if (path == '') {
+            if (path === '') {
                 path = '{{.Dir}}';
             } else {
                 path = path.substring(1, path.length);
             }
             console.log('init path:' + path)
-            if (fsApp.Folder != path) {
+            if (fsApp.Folder !== path) {
                 fsApp.Folder = path;
                 fsApp.reload();
             }

@@ -6,14 +6,35 @@ import (
 	"os/exec"
 	"golang.org/x/sys/windows/svc"
 	"time"
+	"fmt"
+	"regexp"
+	"strings"
 )
 
 type WindowsService struct {
 	running func()
 }
 
+func splitCommands(command string) []string {
+	r := regexp.MustCompile("'.+'|\".+\"|\\S+")
+	m := r.FindAllString(command, -1)
+	for i, item := range m {
+		if strings.HasPrefix(item, `"`) {
+			item = item[1 : len(item)-1]
+		}
+		if strings.HasSuffix(item, `"`) {
+			item = item[:len(item)-1]
+		}
+		m[i] = item
+	}
+	return m
+}
+
 func getStartCommands(command string) *exec.Cmd {
-	return exec.Command("cmd", "/c", command)
+	command = "/c " + command
+	args := splitCommands(command)
+	fmt.Println("args:", args)
+	return exec.Command("cmd", args...)
 }
 
 func (m *WindowsService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {

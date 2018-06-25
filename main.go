@@ -461,8 +461,9 @@ type CommandOutput struct {
 func (fs *WebFS) ExecuteCmd() string {
 	r := flaskgo.GetRequest()
 	command := r.FormValue("command")
+	fmt.Println("Run command:", command)
 	cmd := getStartCommands(command)
-	buffer, err := cmd.Output()
+	buffer, err := cmd.CombinedOutput()
 	output := CommandOutput{err == nil, string(buffer)}
 	return returnJson(&output)
 }

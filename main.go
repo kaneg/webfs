@@ -16,6 +16,9 @@ import (
 	"time"
 
 	"github.com/kaneg/flaskgo"
+	"io"
+	"compress/gzip"
+	"compress/flate"
 )
 
 type WebFS struct {
@@ -310,12 +313,37 @@ func (fs *WebFS) View(filePath string) {
 		fs.app.Redirect("/fs/list/#" + filePath)()
 		return
 	}
-	buffer := make([]byte, info.Size())
-	in.Read(buffer)
-	fmt.Println("read over")
 	w.Header().Add("content-type", "text/plain")
-	w.Header().Add("content-length", strconv.Itoa(int(info.Size())))
-	w.Write(buffer)
+
+	req := flaskgo.GetRequest()
+	acceptEncoding := req.Header.Get("Accept-Encoding")
+	var compressedWriter io.WriteCloser = nil
+	var encoding string
+	if acceptEncoding != "" {
+		encodings := strings.Split(acceptEncoding, ",")
+		for _, encoding = range encodings {
+			encoding = strings.TrimSpace(encoding)
+			fmt.Println("encoding:", encoding)
+			if encoding == "gzip" {
+				compressedWriter = gzip.NewWriter(w)
+				break
+			} else if encoding == "deflate" {
+				compressedWriter, _ = flate.NewWriter(w, flate.DefaultCompression)
+				break
+			}
+		}
+	}
+
+	if compressedWriter != nil {
+		fmt.Println("copy compressed stream")
+		w.Header().Add("content-encoding", encoding)
+		io.Copy(compressedWriter, in)
+		compressedWriter.Close()
+	} else {
+		w.Header().Add("content-length", strconv.Itoa(int(info.Size())))
+		fmt.Println("copy raw stream")
+		io.Copy(w, in)
+	}
 }
 
 func (fs *WebFS) Edit(filePath string) {

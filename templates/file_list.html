@@ -44,6 +44,12 @@
                         <button class="btn btn-outline-secondary" type="button" @click="goToPath()">Go</button>
                     </div>
                 </div>
+                <div class="input-group mb-3">
+                    <input type="text" class="form-control" placeholder="All files" id="search_file" v-model="search_keyword" @keyup.enter="reload">
+                    <div class="input-group-append">
+                        <button class="btn btn-outline-secondary" type="button" @click="reload()">Filter</button>
+                    </div>
+                </div>
                 <div>
                     <div class="btn-group" role="group">
                         <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#upload_file_dialog">Upload
@@ -68,7 +74,21 @@
                     <thead>
                         <tr>
                             <th></th>
-                            <th>Name</th>
+                            <th>Name
+                                <a href="#" @click.prevent="return sort_by('name')">
+                                    <svg focusable="false" width="24" height="24" fill="none" stroke="currentcolor" stroke-width="2" class="text-primary" viewBox="0 0 32 32"
+                                        stroke-linecap="round" stroke-linejoin="round">
+                                        <g v-if="sort_by_map['name']" transform="rotate(180 16 16)">
+                                            <path d="M16 4v20m-8-8l8 8 8-8"></path>
+                                        </g>
+                                        <g v-else>
+                                            <path d="M16 4v20m-8-8l8 8 8-8"></path>
+                                        </g>
+                                    </svg>
+                                  
+                                </a>
+                            </th>
+
                             <th>File Mode</th>
                             <th>Size</th>
                             <th>Modified Date</th>
@@ -83,7 +103,7 @@
                                     <svg width="30" height="30" viewBox="0 0 30 30" class="mc-icon-template-content brws-file-name-cell-icon"><g fill="none" fill-rule="evenodd"><path d="M18.422 11h15.07c.84 0 1.508.669 1.508 1.493v18.014c0 .818-.675 1.493-1.508 1.493H6.508C5.668 32 5 31.331 5 30.507V9.493C5 8.663 5.671 8 6.5 8h7.805c.564 0 1.229.387 1.502.865l1.015 1.777s.4.358 1.6.358z" fill="#71B9F4"></path><path d="M18.422 10h15.07c.84 0 1.508.669 1.508 1.493v18.014c0 .818-.675 1.493-1.508 1.493H6.508C5.668 31 5 30.331 5 29.507V8.493C5 7.663 5.671 7 6.5 7h7.805c.564 0 1.229.387 1.502.865l1.015 1.777s.4.358 1.6.358z" fill="#92CEFF"></path></g></svg>
                             </td>
                             <td v-else>
-                                    <svg width="40" height="40" viewBox="0 0 40 40" class="mc-icon-template-content brws-file-name-cell-icon"><defs><rect id="mc-content-font-small-b" x="8" y="5" width="24" height="30" rx="1.5"></rect><filter x="-2.1%" y="-1.7%" width="104.2%" height="106.7%" filterUnits="objectBoundingBox" id="mc-content-font-small-a"><feOffset dy="1" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset><feColorMatrix values="0 0 0 0 0.858859196 0 0 0 0 0.871765907 0 0 0 0 0.884672619 0 0 0 1 0" in="shadowOffsetOuter1"></feColorMatrix></filter></defs><g fill="none" fill-rule="evenodd"><g><use fill="#000" filter="url(#mc-content-font-small-a)" xlink:href="#mc-content-font-small-b"></use><use fill="#F7F9FA" xlink:href="#mc-content-font-small-b"></use></g><path d="M20 20h3v1h-3v4h-3v-9h3v4zm3-5h1.623L25 18h-1.252l-.874-1.5-.291-.5H16v-1h7zm-7 10h5v1h-5v-1z" fill="#637282"></path></g></svg>
+                                    <svg width="30" height="30" viewBox="0 0 30 30" class="mc-icon-template-content brws-file-name-cell-icon"><defs><rect id="mc-content-font-small-b" x="8" y="5" width="24" height="30" rx="1.5"></rect><filter x="-2.1%" y="-1.7%" width="104.2%" height="106.7%" filterUnits="objectBoundingBox" id="mc-content-font-small-a"><feOffset dy="1" in="SourceAlpha" result="shadowOffsetOuter1"></feOffset><feColorMatrix values="0 0 0 0 0.858859196 0 0 0 0 0.871765907 0 0 0 0 0.884672619 0 0 0 1 0" in="shadowOffsetOuter1"></feColorMatrix></filter></defs><g fill="none" fill-rule="evenodd"><g><use fill="#000" filter="url(#mc-content-font-small-a)" xlink:href="#mc-content-font-small-b"></use><use fill="#F7F9FA" xlink:href="#mc-content-font-small-b"></use></g><path d="M20 20h3v1h-3v4h-3v-9h3v4zm3-5h1.623L25 18h-1.252l-.874-1.5-.291-.5H16v-1h7zm-7 10h5v1h-5v-1z" fill="#637282"></path></g></svg>
                             </td>
                             <td v-if="file.IsDir">
                                 <a href="#" @click.prevent="return list_relative_path(file.Name)" :name="file.Name">${file.Name}</a>
@@ -217,6 +237,8 @@
                 data: {
                     files: [],
                     Folder: null,
+                    search_keyword: null,
+                    sort_by_map: {'name': true}
                 },
                 methods: {
                     get_full_path: function (path) {
@@ -238,6 +260,14 @@
                             tmp_files = []
                             for (var i = 0; i < msg.Files.length; i++) {
                                 file = msg.Files[i]
+
+                                if(this.search_keyword){
+                                    var regex = RegExp(this.search_keyword)
+                                    if(!regex.test(file.Name)){
+                                        continue
+                                    }
+                                }
+
                                 if (file.Name[0] != '.' || $('#show_hidden_file').is(':checked')) {
                                     file.editable = _this.is_editable(file.Name)
                                     file.viewable = file.editable
@@ -251,7 +281,12 @@
                                 } else if (!a.IsDir && b.IsDir) {
                                     return 1
                                 } else {
-                                    return 0
+                                    var isAsc = _this.sort_by_map['name']
+                                    if(isAsc){
+                                        return a.Name.toLocaleLowerCase().localeCompare(b.Name.toLocaleLowerCase())
+                                    }else{
+                                        return b.Name.toLocaleLowerCase().localeCompare(a.Name.toLocaleLowerCase())
+                                    }
                                 }
                             })
 
@@ -338,6 +373,11 @@
                             }
                             _this.reload()
                         }, "json");
+                    },
+                    sort_by: function(order_by){
+                        console.log('order by:' + order_by)
+                        this.sort_by_map[order_by] = !this.sort_by_map[order_by]
+                        this.reload()
                     }
                 }
             });

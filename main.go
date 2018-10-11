@@ -286,13 +286,11 @@ func (fs *WebFS) Download(filePath string) {
 		return
 	}
 	info, _ := in.Stat()
-	buffer := make([]byte, info.Size())
-	in.Read(buffer)
 	fmt.Println("read over")
 	disposition := fmt.Sprintf("attachment; filename=\"%s\"", fileName)
 	w.Header().Add("content-disposition", disposition)
 	w.Header().Add("content-length", strconv.Itoa(int(info.Size())))
-	w.Write(buffer)
+	io.Copy(w, in)
 	fmt.Println("write over")
 }
 

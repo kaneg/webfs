@@ -159,6 +159,7 @@ func (fs *WebFS) Index() string {
 	c := make(flaskgo.Context)
 	c["Dir"] = dir
 	c["Prefix"] = fs.app.Prefix
+	c["Version"] = VERSION
 	return fs.app.RenderTemplate("file_list.html", &c)
 }
 

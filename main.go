@@ -15,10 +15,10 @@ import (
 	"strings"
 	"time"
 
+	"compress/flate"
+	"compress/gzip"
 	"github.com/kaneg/flaskgo"
 	"io"
-	"compress/gzip"
-	"compress/flate"
 )
 
 type WebFS struct {
@@ -286,11 +286,45 @@ func (fs *WebFS) Download(filePath string) {
 		return
 	}
 	info, _ := in.Stat()
-	fmt.Println("read over")
+	fileSize := info.Size()
+	r := flaskgo.GetRequest()
 	disposition := fmt.Sprintf("attachment; filename=\"%s\"", fileName)
 	w.Header().Add("content-disposition", disposition)
-	w.Header().Add("content-length", strconv.Itoa(int(info.Size())))
-	io.Copy(w, in)
+	bytesRange := r.Header.Get("Range")
+
+	if bytesRange == "" {
+		w.Header().Add("content-length", strconv.Itoa(int(fileSize)))
+		io.Copy(w, in)
+	} else {
+		var start int64 = 0
+		var end = fileSize
+		bytesRange = bytesRange[6:]
+		ranges := strings.Split(bytesRange, "-")
+		startStr := ranges[0]
+		endStr := ranges[1]
+		if startStr == "" { //-200
+			endTmp, _ := strconv.Atoi(endStr)
+			end = int64(endTmp)
+			start = fileSize - int64(end)
+		} else if endStr == "" { //100-
+			startTmp, _ := strconv.Atoi(startStr)
+			start = int64(startTmp)
+		} else { //100-200
+			startTmp, _ := strconv.Atoi(startStr)
+			start = int64(startTmp)
+			endTmp, _ := strconv.Atoi(endStr)
+			end = int64(endTmp)
+		}
+
+		length := end - start
+		w.Header().Add("content-range", fmt.Sprintf("bytes %d-%d/%d", start, end-1, fileSize))
+		w.Header().Add("content-length", fmt.Sprintf("%d", length))
+		w.WriteHeader(206)
+
+		in.Seek(start, 0)
+		io.CopyN(w, in, length)
+	}
+
 	fmt.Println("write over")
 }
 

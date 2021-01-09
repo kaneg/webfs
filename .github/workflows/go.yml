@@ -26,6 +26,8 @@ jobs:
 
     - name: Build
       run: go build -v .
+    - name: list file
+      run: ls -l
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
